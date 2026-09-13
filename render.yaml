@@ -10,6 +10,8 @@ services:
     healthCheckPath: /api/health
     plan: free
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
       - key: MAX_UPLOAD_MB
         value: 50
       # After the Vercel deploy, set this to your frontend URL
