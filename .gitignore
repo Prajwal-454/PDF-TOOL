@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Next.js
+frontend/.next/
+frontend/out/
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+next-env.d.ts
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+backend/.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Local env / secrets (examples are committed)
+.env
+backend/.env
+frontend/.env.local
+frontend/.env*.local
+
+# Runtime uploads & job outputs (dirs auto-created by storage.ensure_dirs())
+backend/storage/tmp/
+backend/storage/output/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
