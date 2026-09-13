@@ -1,6 +1,7 @@
 # PDF Platform — complete, 100% free (no paid services)
 
 Modular iLovePDF-style platform. See `FREE_STACK.md` for the free-only guarantee.
+See `DEPLOY.md` to host the frontend on Vercel and the backend on Render (both free).
 
 ## What is built (26 tools + workspace + workflows + history)
 - Organize: merge, split, remove-pages, extract-pages, rotate, reorder

@@ -1,0 +1,19 @@
+# Render blueprint: free FastAPI backend for the PDF platform.
+# Dashboard: New → Blueprint → select this repo. Render reads this file automatically.
+services:
+  - type: web
+    name: pdf-tool-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    plan: free
+    envVars:
+      - key: MAX_UPLOAD_MB
+        value: 50
+      # After the Vercel deploy, set this to your frontend URL
+      # (Render → service → Environment → save triggers a restart):
+      # CORS_ORIGINS=https://<your-app>.vercel.app,http://localhost:3000
+      - key: CORS_ORIGINS
+        value: http://localhost:3000
