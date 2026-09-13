@@ -53,3 +53,4 @@ The API only accepts browsers from origins in `CORS_ORIGINS`:
 | First tool run slow (~60s), then fast | Render cold start — normal on free tier |
 | Old download links 404 | Ephemeral disk restarted — re-run the tool |
 | Vercel build can't reach API | `NEXT_PUBLIC_API_BASE` unset at build time — set it, then **Redeploy** |
+| Render build fails on `pydantic-core` / Rust / `maturin` | Wrong Python version — keep `runtime.txt` on 3.12.x (3.14 has no wheels for pinned deps) |
