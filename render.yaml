@@ -14,8 +14,9 @@ services:
         value: 3.12.7
       - key: MAX_UPLOAD_MB
         value: 50
-      # After the Vercel deploy, set this to your frontend URL
-      # (Render → service → Environment → save triggers a restart):
+      # After the Vercel deploy, lock this down to your frontend URL(s):
       # CORS_ORIGINS=https://<your-app>.vercel.app,http://localhost:3000
+      # Default "*" allows any frontend (incl. Vercel preview URLs). Safe here:
+      # the API uses no cookies/auth. Lock it down once your domain is stable.
       - key: CORS_ORIGINS
-        value: http://localhost:3000
+        value: "*"

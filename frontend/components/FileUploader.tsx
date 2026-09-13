@@ -17,7 +17,7 @@ export default function FileUploader({ onUploaded }: { onUploaded: (f: UploadedF
           onUploaded(up);
         }
       } catch (e: any) {
-        setError("Upload failed. Only valid PDFs under 50 MB are accepted.");
+        setError(e?.message || "Upload failed. Only valid PDFs under 50 MB are accepted.");
       } finally {
         setBusy(false);
       }

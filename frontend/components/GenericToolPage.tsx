@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 import ToolHeader from "@/components/ToolHeader";
 import ProcessingProgress from "@/components/ProcessingProgress";
-import { uploadPdf, uploadAny, startTool, pollJob, downloadUrl, type UploadedFile, type Job } from "@/lib/api";
+import { uploadPdf, uploadAny, startTool, pollJob, downloadUrl, API_BASE, isLocalApiDefault, type UploadedFile, type Job } from "@/lib/api";
 import { pushHistory } from "@/lib/history";
 import type { Tool } from "@/lib/tools";
 
@@ -44,8 +44,8 @@ export default function GenericToolPage({ tool }: { tool: Tool }) {
           const up = tool.anyUpload || tool.slug === "sign" ? await uploadAny(f) : await uploadPdf(f).catch(async () => await uploadAny(f));
           setFiles((prev) => [...prev, up]);
         }
-      } catch {
-        setError("Upload failed. Check file type (free intake: PDF/JPG/PNG/DOCX/XLSX/PPTX/HTML/TXT, 50 MB max).");
+      } catch (e: any) {
+        setError(e?.message || "Upload failed. Check file type (free intake: PDF/JPG/PNG/DOCX/XLSX/PPTX/HTML/TXT, 50 MB max).");
       } finally {
         setStatus("idle");
       }
@@ -80,7 +80,7 @@ export default function GenericToolPage({ tool }: { tool: Tool }) {
       if (done.status === "failed") setError(done.error || "Processing failed.");
     } catch (e: any) {
       setStatus("failed");
-      setError("Request failed. The backend message (if any) is shown in History/logs.");
+      setError(e?.message || "Request failed.");
     }
   }
 
@@ -90,6 +90,12 @@ export default function GenericToolPage({ tool }: { tool: Tool }) {
   return (
     <div>
       <ToolHeader title={tool.name} desc={tool.desc} />
+      {isLocalApiDefault && typeof window !== "undefined" && window.location.hostname !== "localhost" && (
+        <p role="alert" className="mb-4 rounded-xl border border-danger bg-card px-4 py-3 text-sm text-danger">
+          Backend not configured: this site was built without NEXT_PUBLIC_API_BASE, so uploads go to {API_BASE} and fail.
+          Set NEXT_PUBLIC_API_BASE to your Render URL in Vercel → Redeploy.
+        </p>
+      )}
       {tool.hint && <p className="mb-4 rounded-xl border border-line bg-primaryLight px-4 py-3 text-sm">{tool.hint}</p>}
       <div {...getRootProps()} className={`cursor-pointer rounded-2xl border-2 border-dashed bg-card p-8 text-center ${isDragActive ? "border-primary bg-primaryLight" : "border-line"}`}>
         <input {...getInputProps()} aria-label={`Upload for ${tool.name}`} />

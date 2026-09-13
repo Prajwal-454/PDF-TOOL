@@ -48,8 +48,8 @@ export default function MergePage() {
     try {
       const { job_id } = await startMerge(files.map((f) => f.file_id));
       await poll(job_id);
-    } catch {
-      setStatus("failed");
+    } catch (e: any) {
+      setStatus(`failed: ${e?.message || "merge failed"}`);
     }
   }
 

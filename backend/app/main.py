@@ -14,10 +14,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
+_origins = settings.cors_origin_list
+# Starlette rejects allow_credentials=True together with allow_origins=["*"],
+# and browsers reject it too. The API uses no cookies, so credentials are
+# unnecessary when wildcard is configured (covers Vercel preview URLs).
+_allow_credentials = not ("*" in _origins)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
-    allow_credentials=True,
+    allow_origins=_origins,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

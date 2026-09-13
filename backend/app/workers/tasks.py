@@ -39,10 +39,12 @@ def _dispatch(tool: str, p: dict) -> dict:
         r = pdf_service.merge_pdfs(paths, out)
         return {**r, "output_file": name}
     if tool == "split":
-        name, _ = _out()
-        # split returns multiple files; store dir marker
-        r = pdf_service.split_pdf(tmp(p["file_id"]), settings.output_dir, p.get("ranges"))
-        return {**r, "output_file": r["parts"][0]}
+        # Use a unique subdir per job so concurrent splits never overwrite
+        # each other (previously all wrote split-1.pdf to output/ top-level).
+        dirname = job_tmp_dir()
+        r = pdf_service.split_pdf(tmp(p["file_id"]), settings.output_dir / dirname, p.get("ranges"))
+        namespaced = [f"{dirname}/{n}" for n in r["parts"]]
+        return {**r, "parts": namespaced, "output_file": namespaced[0]}
     if tool == "remove-pages":
         name, out = _out()
         r = pdf_service.remove_pages(tmp(p["file_id"]), out, p["pages"])
@@ -95,8 +97,14 @@ def _dispatch(tool: str, p: dict) -> dict:
         r = pdf_service.compare_pdfs(tmp(p["file_a"]), tmp(p["file_b"]))
         return {**r, "output_file": None}
     if tool == "pdf-to-images":
-        r = pdf_service.pdf_to_images(tmp(p["file_id"]), settings.output_dir / job_tmp_dir(p), int(p.get("dpi", 150)), p.get("fmt", "png"))
-        return {**r, "output_file": r["images"][0]}
+        # pdf_to_images writes page-*.png into a unique per-job subdir.
+        # Namespace output_file (and images) with the subdir so /api/download
+        # can resolve it; previously the bare "page-1.png" 404'd because the
+        # file lived at output/<uuid>/page-1.png but download looked top-level.
+        dirname = job_tmp_dir()
+        r = pdf_service.pdf_to_images(tmp(p["file_id"]), settings.output_dir / dirname, int(p.get("dpi", 150)), p.get("fmt", "png"))
+        namespaced = [f"{dirname}/{n}" for n in r["images"]]
+        return {**r, "images": namespaced, "output_file": namespaced[0]}
     if tool == "images-to-pdf":
         paths = [tmp(fid) for fid in p["file_ids"]]
         name, out = _out()
@@ -152,7 +160,7 @@ def _dispatch(tool: str, p: dict) -> dict:
     raise ValueError(f"Unknown tool: {tool}")
 
 
-def job_tmp_dir(p: dict) -> str:
+def job_tmp_dir(_p: dict | None = None) -> str:
     import uuid
     d = settings.output_dir / uuid.uuid4().hex
     d.mkdir(parents=True, exist_ok=True)
