@@ -10,14 +10,20 @@ export default function AIWorkspace() {
   const [q, setQ] = useState("What are the key points?");
   const [out, setOut] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { getRootProps, getInputProps } = useDropzone({
     multiple: false,
+    accept: { "application/pdf": [".pdf"] },
     onDrop: async ([f]) => {
+      if (!f) return;
       setBusy(true);
+      setError(null);
       try {
         const up = await uploadPdf(f);
         setFileId(up.file_id);
         setName(up.original_name);
+      } catch (e: any) {
+        setError(e?.message || "Upload failed. Only valid PDFs under 50 MB are accepted.");
       } finally {
         setBusy(false);
       }
@@ -45,6 +51,7 @@ export default function AIWorkspace() {
         <p className="font-medium">{fileId ? `${name} ✓` : "Drop PDF here"}</p>
         <p className="text-sm text-muted">{busy ? "Working…" : "Ask anything about your document"}</p>
       </div>
+      {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
       <div className="mt-4 flex flex-wrap gap-2">
         <button disabled={!fileId || busy} onClick={() => run("summarize", { mode: "key-points" })} className="rounded-xl bg-primary px-4 py-2 text-white disabled:opacity-40">Summarize</button>
         <button disabled={!fileId || busy} onClick={() => run("markdown", {})} className="rounded-xl border border-line bg-card px-4 py-2">→ Markdown</button>

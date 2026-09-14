@@ -11,11 +11,19 @@ export default function Workflows() {
   const [steps, setSteps] = useState<any[]>([{ op: "compress", params: { level: "recommended" } }]);
   const [out, setOut] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { getRootProps, getInputProps } = useDropzone({
     multiple: false,
+    accept: { "application/pdf": [".pdf"] },
     onDrop: async ([f]) => {
-      const up = await uploadPdf(f);
-      setFileId(up.file_id);
+      if (!f) return;
+      setError(null);
+      try {
+        const up = await uploadPdf(f);
+        setFileId(up.file_id);
+      } catch (e: any) {
+        setError(e?.message || "Upload failed. Only valid PDFs under 50 MB are accepted.");
+      }
     }
   });
 
@@ -26,6 +34,7 @@ export default function Workflows() {
         <input {...getInputProps()} aria-label="Upload PDF for workflow" />
         <p className="font-medium">{fileId ? "PDF ready ✓" : "Upload PDF"}</p>
       </div>
+      {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
       <div className="mt-4 space-y-2">
         {steps.map((s, i) => (
           <div key={i} className="flex items-center gap-2 rounded-xl border border-line bg-card p-3">

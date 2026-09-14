@@ -122,10 +122,13 @@ def _dispatch(tool: str, p: dict) -> dict:
         return {**r, "output_file": name}
     if tool == "office-to-pdf":
         name, out = _out()
-        kind = p.get("kind", "docx")
+        kind = str(p.get("kind", "docx")).lower()
+        if kind == "csv":
+            kind = "txt"  # CSV is plain text for the free engine
         src = tmp(p["file_id"])
         fn = {"docx": conversion_service.docx_to_pdf, "xlsx": conversion_service.xlsx_to_pdf,
               "pptx": conversion_service.pptx_to_pdf, "html": conversion_service.html_to_pdf,
+              "htm": conversion_service.html_to_pdf,
               "txt": conversion_service.txt_to_pdf}[kind]
         r = fn(src, out)
         return {**r, "output_file": name}

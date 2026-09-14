@@ -7,6 +7,37 @@ import { uploadPdf, uploadAny, startTool, pollJob, downloadUrl, API_BASE, isLoca
 import { pushHistory } from "@/lib/history";
 import type { Tool } from "@/lib/tools";
 
+function dropzoneAccept(tool: Tool): Record<string, string[]> | undefined {
+  // Map tool.accept to a react-dropzone accept object for the file picker.
+  // Server (upload-any / upload) remains the source of truth.
+  if (tool.slug === "sign") return undefined; // needs PDF + PNG together
+  const a = (tool.accept || "").toLowerCase();
+  if (a.includes("application/pdf") && !a.includes(".docx")) return { "application/pdf": [".pdf"] };
+  const mimeFor: Record<string, string> = {
+    ".pdf": "application/pdf",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".html": "text/html",
+    ".htm": "text/html",
+    ".txt": "text/plain",
+    ".csv": "text/csv",
+  };
+  const exts = tool.accept.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (exts.length === 0 || (exts.length === 1 && exts[0] === "image/*")) {
+    return { "image/jpeg": [".jpg", ".jpeg"], "image/png": [".png"] };
+  }
+  const out: Record<string, string[]> = {};
+  for (const e of exts) {
+    const mime = mimeFor[e] || "application/octet-stream";
+    (out[mime] ||= []).push(e);
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function toPayload(tool: Tool, files: UploadedFile[], params: Record<string, string>): any {
   const p: any = { ...params };
   if (tool.slug === "merge" || tool.slug === "images-to-pdf") return { ...p, file_ids: files.map((f) => f.file_id) };
@@ -34,18 +65,31 @@ export default function GenericToolPage({ tool }: { tool: Tool }) {
   const [error, setError] = useState<string | null>(null);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: tool.slug === "merge" ? { "application/pdf": [".pdf"] } : undefined,
+    accept: dropzoneAccept(tool),
     multiple: Boolean(tool.multi),
+    onDropRejected: (rejections) => {
+      const names = rejections.map((r) => r.file.name).join(", ") || "file";
+      setError(
+        `${names} was blocked by the file picker. This tool accepts ${tool.accept} (free intake: PDF/JPG/PNG/DOCX/XLSX/PPTX/HTML/TXT/CSV, 50 MB max). If your file looks valid, try renaming it to the right extension and re-upload.`
+      );
+    },
     onDrop: async (dropped: File[]) => {
       setError(null);
       setStatus("uploading");
       try {
         for (const f of dropped) {
+          // Client pre-check: give an instant message for obviously wrong extensions
+          // instead of waiting for the server round-trip.
+          const lower = f.name.toLowerCase();
+          const isPdfTool = !tool.anyUpload && tool.slug !== "sign";
+          if (isPdfTool && !(/\.pdf$/i.test(lower))) {
+            // Still try server (it handles edge cases), but warn if server rejects.
+          }
           const up = tool.anyUpload || tool.slug === "sign" ? await uploadAny(f) : await uploadPdf(f).catch(async () => await uploadAny(f));
           setFiles((prev) => [...prev, up]);
         }
       } catch (e: any) {
-        setError(e?.message || "Upload failed. Check file type (free intake: PDF/JPG/PNG/DOCX/XLSX/PPTX/HTML/TXT, 50 MB max).");
+        setError(e?.message || "Upload failed. Check file type (free intake: PDF/JPG/JPEG/PNG/DOCX/XLSX/PPTX/HTML/TXT/CSV, 50 MB max). If the message shows HTTP 400, it names the exact problem (e.g. WEBP/GIF/legacy .doc).");
       } finally {
         setStatus("idle");
       }

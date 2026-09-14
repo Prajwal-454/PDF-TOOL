@@ -17,7 +17,18 @@ async function errText(res: Response, fallback: string): Promise<Error> {
     /* ignore */
   }
   // Surface backend detail (FastAPI {"detail": "..."}) instead of swallowing it.
-  const msg = body || `${res.status} ${res.statusText}`;
+  // Parse JSON detail so the UI shows a clean message, not raw {"detail":...}.
+  let msg = body || `${res.status} ${res.statusText}`;
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed && typeof parsed.detail === "string" && parsed.detail.trim()) {
+      msg = parsed.detail;
+    } else if (Array.isArray(parsed?.detail) && parsed.detail[0]?.msg) {
+      msg = parsed.detail.map((d: any) => d.msg).join("; ");
+    }
+  } catch {
+    /* body was not JSON — keep raw text */
+  }
   return new Error(`${fallback} (HTTP ${res.status}): ${msg}`);
 }
 
