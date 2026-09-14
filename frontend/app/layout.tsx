@@ -20,20 +20,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen">
-        <header className="border-b border-line bg-card">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-            <a href="/" className="font-semibold text-ink">PDF Tools</a>
-            <nav className="hidden gap-6 text-sm text-muted md:flex">
-              <a href="/">Tools</a>
-              <a href="/tools/merge">Merge</a>
-              <a href="/ai">AI</a>
-              <a href="/workflows">Workflows</a>
-              <a href="/history">History</a>
-            </nav>
-            <div className="flex gap-3">
-              <a href="/history" className="rounded-lg border border-line px-4 py-2 text-sm">History</a>
-              <a href="/tools/merge" className="rounded-lg bg-primary px-4 py-2 text-sm text-white">Get Started</a>
-            </div>
+        <header className="border-b border-line bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+          <div className="mx-auto flex max-w-6xl items-center px-6 py-3">
+            <a href="/" className="flex items-center gap-2" aria-label="PDF-TOOL home">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-white">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 2v6h6" />
+                </svg>
+              </span>
+              <span className="text-base font-semibold tracking-tight text-ink">PDF-TOOL</span>
+            </a>
           </div>
         </header>
         <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
