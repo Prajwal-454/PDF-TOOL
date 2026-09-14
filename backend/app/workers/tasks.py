@@ -41,6 +41,9 @@ def _dispatch(tool: str, p: dict) -> dict:
     if tool == "split":
         # Use a unique subdir per job so concurrent splits never overwrite
         # each other (previously all wrote split-1.pdf to output/ top-level).
+        parts_req = [p.strip() for p in str(p.get("ranges", "")).split(",")] if p.get("ranges") else None
+        if parts_req is not None and len([x for x in parts_req if x]) > settings.max_split_parts:
+            raise ValueError(f"Too many split parts (max {settings.max_split_parts}).")
         dirname = job_tmp_dir()
         r = pdf_service.split_pdf(tmp(p["file_id"]), settings.output_dir / dirname, p.get("ranges"))
         namespaced = [f"{dirname}/{n}" for n in r["parts"]]
@@ -101,8 +104,19 @@ def _dispatch(tool: str, p: dict) -> dict:
         # Namespace output_file (and images) with the subdir so /api/download
         # can resolve it; previously the bare "page-1.png" 404'd because the
         # file lived at output/<uuid>/page-1.png but download looked top-level.
+        dpi = int(p.get("dpi", 150))
+        if dpi < 72 or dpi > settings.max_image_dpi:
+            raise ValueError(f"DPI must be 72–{settings.max_image_dpi} on the free tier.")
+        try:
+            pages = pdf_service.get_page_count(tmp(p["file_id"]))
+        except Exception:
+            pages = 0
+        if pages and pages > settings.max_image_pages:
+            raise ValueError(
+                f"PDF has {pages} pages (max {settings.max_image_pages} for image export "
+                "on the free tier). Split it first.")
         dirname = job_tmp_dir()
-        r = pdf_service.pdf_to_images(tmp(p["file_id"]), settings.output_dir / dirname, int(p.get("dpi", 150)), p.get("fmt", "png"))
+        r = pdf_service.pdf_to_images(tmp(p["file_id"]), settings.output_dir / dirname, dpi, p.get("fmt", "png"))
         namespaced = [f"{dirname}/{n}" for n in r["images"]]
         return {**r, "images": namespaced, "output_file": namespaced[0]}
     if tool == "images-to-pdf":
@@ -112,9 +126,19 @@ def _dispatch(tool: str, p: dict) -> dict:
         return {**r, "output_file": name}
     if tool == "sign":
         name, out = _out()
-        r = pdf_service.place_signature(tmp(p["file_id"]), out, tmp(p["image_id"]),
-                                        int(p.get("page", 1)), float(p.get("x", 100)),
-                                        float(p.get("y", 100)))
+        try:
+            page = int(p.get("page", 1))
+        except (TypeError, ValueError):
+            page = 1
+        try:
+            x = float(p.get("x", 100) or 100)
+        except (TypeError, ValueError):
+            x = 100.0
+        try:
+            y = float(p.get("y", 100) or 100)
+        except (TypeError, ValueError):
+            y = 100.0
+        r = pdf_service.place_signature(tmp(p["file_id"]), out, tmp(p["image_id"]), page, x, y)
         return {**r, "output_file": name}
     if tool == "ocr":
         name, out = _out()

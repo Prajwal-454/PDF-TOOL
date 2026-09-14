@@ -122,3 +122,7 @@ export async function pollJob(job_id: string, onTick?: (j: Job) => void): Promis
 export function downloadUrl(file_name: string): string {
   return `${API_BASE}/api/download/${file_name}`;
 }
+
+export function downloadBundleUrl(subdir: string): string {
+  return `${API_BASE}/api/download-bundle/${subdir}`;
+}

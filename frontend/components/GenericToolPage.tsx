@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 import ToolHeader from "@/components/ToolHeader";
 import ProcessingProgress from "@/components/ProcessingProgress";
-import { uploadPdf, uploadAny, startTool, pollJob, downloadUrl, API_BASE, isLocalApiDefault, type UploadedFile, type Job } from "@/lib/api";
+import { uploadPdf, uploadAny, startTool, pollJob, downloadUrl, downloadBundleUrl, API_BASE, isLocalApiDefault, type UploadedFile, type Job } from "@/lib/api";
 import { pushHistory } from "@/lib/history";
 import type { Tool } from "@/lib/tools";
 
@@ -45,7 +45,7 @@ function toPayload(tool: Tool, files: UploadedFile[], params: Record<string, str
   if (tool.slug === "sign") {
     const pdf = files.find((f) => f.file_id.endsWith(".pdf"));
     const img = files.find((f) => !f.file_id.endsWith(".pdf"));
-    return { ...p, file_id: pdf?.file_id, image_id: img?.file_id, page: Number(p.page || 1) };
+    return { ...p, file_id: pdf?.file_id, image_id: img?.file_id, page: Number(p.page || 1), x: Number(p.x || 100), y: Number(p.y || 100) };
   }
   if (tool.slug === "reorder") return { order: String(p.order || "").split(",").map((x: string) => Number(x.trim())).filter(Boolean) };
   if (tool.slug === "redact") return { phrases: String(p.phrases || "").split(",").map((x: string) => x.trim()).filter(Boolean) };
@@ -150,6 +150,16 @@ export default function GenericToolPage({ tool }: { tool: Tool }) {
 
   const res: any = job?.result ?? {};
   const showJson = ["summarize", "ask", "form-detect", "translate", "compare"].includes(tool.slug);
+  const multiFiles: string[] = Array.isArray(res.parts) ? res.parts : Array.isArray(res.images) ? res.images : [];
+  const bundleDir = multiFiles.length > 0 && multiFiles[0].includes("/") ? multiFiles[0].split("/")[0] : null;
+
+  function fmtBytes(n: any): string {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return "";
+    if (v < 1024) return `${v} B`;
+    if (v < 1024 * 1024) return `${(v / 1024).toFixed(1)} KB`;
+    return `${(v / (1024 * 1024)).toFixed(2)} MB`;
+  }
 
   return (
     <div>
@@ -194,17 +204,41 @@ export default function GenericToolPage({ tool }: { tool: Tool }) {
           )}
         </div>
       )}
-      <button onClick={run} disabled={status === "queued" || status === "processing" || status === "uploading"} className="mt-4 rounded-xl bg-primary px-5 py-3 text-white disabled:opacity-40">
-        Run {tool.name}
-      </button>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button onClick={run} disabled={status === "queued" || status === "processing" || status === "uploading"} className="rounded-xl bg-primary px-5 py-3 text-white disabled:opacity-40">
+          Run {tool.name}
+        </button>
+        {(files.length > 0 || job) && (
+          <button onClick={() => { setFiles([]); setJob(null); setError(null); setStatus("idle"); }} className="rounded-xl border border-line bg-card px-5 py-3">
+            Reset
+          </button>
+        )}
+      </div>
       <ProcessingProgress status={status} />
       {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
       {job?.status === "completed" && job.output_file && (
         <div className="mt-6 rounded-2xl border border-line bg-card p-5">
           <p className="font-medium text-success">Done.</p>
-          {res.saved_pct !== undefined && <p className="text-sm text-muted">Saved {res.saved_pct}% ({res.original} → {res.size} bytes).</p>}
+          {res.saved_pct !== undefined && <p className="text-sm text-muted">Saved {res.saved_pct}% ({fmtBytes(res.original)} → {fmtBytes(res.size)}).</p>}
+          {res.size !== undefined && res.saved_pct === undefined && <p className="text-sm text-muted">Output size: {fmtBytes(res.size)}{res.pages ? ` · ${res.pages} page(s)` : ""}.</p>}
           {res.redactions !== undefined && <p className="text-sm text-muted">{res.redactions} redactions applied. Verification leftover: {res.verify_leftover}.</p>}
-          <a href={downloadUrl(job.output_file)} className="mt-4 inline-block rounded-xl bg-primary px-5 py-3 text-white" download>Download result</a>
+          {res.count !== undefined && multiFiles.length > 0 && <p className="text-sm text-muted">{res.count} file(s) produced.</p>}
+          <div className="mt-4 flex flex-wrap gap-3">
+            <a href={downloadUrl(job.output_file)} className="inline-block rounded-xl bg-primary px-5 py-3 text-white" download>Download result</a>
+            {bundleDir && (
+              <a href={downloadBundleUrl(bundleDir)} className="inline-block rounded-xl border border-line bg-card px-5 py-3" download>Download all (.zip)</a>
+            )}
+          </div>
+          {multiFiles.length > 1 && (
+            <ul className="mt-4 space-y-1 text-sm">
+              {multiFiles.map((n: string) => (
+                <li key={n}>
+                  <a className="text-primary" href={downloadUrl(n)} download>{n.split("/").pop()}</a>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-3 text-xs text-muted">Links expire after ~24h on the free tier (ephemeral disk). Re-run the tool if a link 404s.</p>
         </div>
       )}
       {job?.status === "completed" && showJson && (

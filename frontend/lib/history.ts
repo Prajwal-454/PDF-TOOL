@@ -23,3 +23,9 @@ export function readHistory(): HistoryEntry[] {
     return [];
   }
 }
+
+export function clearHistory() {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {}
+}

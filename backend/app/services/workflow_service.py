@@ -7,11 +7,13 @@ from ..utils.files import safe_output_name
 
 
 def run_workflow(steps: list[dict], start_file: str) -> dict:
-    """steps: [{'op': 'ocr'|'compress'|'watermark'|'protect'|'page-numbers'|'rotate', 'params': {...}}].
+    """steps: [{'op': 'ocr'|'compress'|'watermark'|'protect'|'page-numbers'|'rotate'|'repair'|'crop', 'params': {...}}].
     Threads a single PDF through each step. Returns final output info."""
     cur = storage.tmp_path(start_file)
     if not cur.exists():
         raise ValueError("Starting file not found or expired.")
+    if len(steps) > 10:
+        raise ValueError("Too many workflow steps (max 10).")
     trace = []
     for s in steps:
         op = s.get("op")
@@ -35,6 +37,16 @@ def run_workflow(steps: list[dict], start_file: str) -> dict:
             cur = out
         elif op == "rotate":
             r = pdf_service.rotate_pages(cur, out, None, int(params.get("angle", 90)))
+            cur = out
+        elif op == "repair":
+            r = pdf_service.repair_pdf(cur, out)
+            cur = out
+        elif op == "crop":
+            try:
+                margin = float(params.get("margin_pct", 10))
+            except (TypeError, ValueError):
+                margin = 10.0
+            r = pdf_service.crop_pdf(cur, out, margin)
             cur = out
         else:
             raise ValueError(f"Unknown workflow op: {op}")

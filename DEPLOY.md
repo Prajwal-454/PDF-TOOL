@@ -45,6 +45,26 @@ The API only accepts browsers from origins in `CORS_ORIGINS`:
 - If you change `NEXT_PUBLIC_API_BASE`, Vercel needs a **redeploy** (env is build-time).
 - If you change `CORS_ORIGINS`, Render restarts automatically on save.
 
+## 5. Verify (both local and live)
+
+```powershell
+# Local backends
+.\scripts\verify-deploy.ps1 -ApiBase http://localhost:8000
+
+# Live (Render + optional Vercel check)
+$env:API_BASE = "https://<your-render-service>.onrender.com"
+$env:FRONTEND_URL = "https://<your-app>.vercel.app"
+.\scripts\verify-deploy.ps1
+```
+
+What it checks: `/api/health` (status + storage/jobs), `/api/tools` (26 tools),
+`/api/maintenance/stats`, and a full upload → compress → job roundtrip.
+First live run may take ~60s (Render cold start) — the script uses 60s timeouts.
+
+Ephemeral-disk note: uploads/results auto-expire after `FILE_TTL_HOURS` (default 24h).
+Cleanup runs on every boot plus on demand via `POST /api/maintenance/cleanup` —
+no cron needed on the free tier. Old download links 404 after expiry; the UI says so.
+
 ## Troubleshooting
 
 | Symptom | Cause / fix |

@@ -15,7 +15,9 @@ def _make_pdf(path: Path, pages: int = 1):
 
 
 def test_health():
-    assert client.get("/api/health").json() == {"status": "ok"}
+    body = client.get("/api/health").json()
+    assert body["status"] == "ok"
+    assert "storage" in body and "jobs" in body
 
 
 def test_upload_merge_download(tmp_path):

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from ..utils import storage
 from ..utils.config import settings
 
@@ -38,3 +38,38 @@ def download_result(file_name: str):
         raise HTTPException(404, "Result not found or expired.")
     media, dl = MEDIA.get(path.suffix.lower(), ("application/octet-stream", file_name))
     return FileResponse(str(path), media_type=media, filename=dl)
+
+
+@router.get("/download-bundle/{subdir}")
+def download_bundle(subdir: str):
+    """Zip every file in a per-job output subdir (split / pdf-to-images).
+
+    subdir is the bare uuid dir name, e.g. <uuid> from "<uuid>/page-1.png".
+    """
+    import io
+    import re
+    import zipfile
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", subdir):
+        raise HTTPException(400, "Invalid bundle name.")
+    folder = storage.output_path(subdir)
+    try:
+        if not folder.resolve().is_relative_to(settings.output_dir.resolve()):
+            raise HTTPException(400, "Invalid bundle name.")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(400, "Invalid bundle name.")
+    if not folder.is_dir():
+        raise HTTPException(404, "Result not found or expired.")
+    names = sorted(p.name for p in folder.iterdir() if p.is_file())
+    if not names:
+        raise HTTPException(404, "Result not found or expired.")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for n in names:
+            if not re.fullmatch(r"[A-Za-z0-9._-]+", n):
+                continue
+            zf.write(str(folder / n), arcname=n)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/zip",
+                             headers={"Content-Disposition": f"attachment; filename={subdir}.zip"})

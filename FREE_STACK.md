@@ -17,7 +17,7 @@ Everything in this project runs free, offline-first. No OpenAI, no paid OCR, no 
 | Markdown/forms | PyMuPDF heuristics | — | Free |
 | Jobs dev | FastAPI BackgroundTasks | — | Zero infra |
 | Jobs prod | Celery + Redis + PostgreSQL (all free OSS) | Apache/BSD/PostgreSQL | docker-compose slots reserved |
-| Storage dev | Local disk | — | Auto-cleanup TODO documented |
+| Storage dev | Local disk + TTL auto-cleanup (boot + POST /api/maintenance/cleanup) | — | Free tier ephemeral by design; UI warns links expire ~24h |
 | Storage prod | MinIO (free S3-compatible, AGPL) or Cloudflare R2 free tier | — | Same S3 API |
 
 ## Frontend (all free)

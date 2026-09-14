@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import ToolHeader from "@/components/ToolHeader";
-import { readHistory, type HistoryEntry } from "@/lib/history";
+import { readHistory, clearHistory, type HistoryEntry } from "@/lib/history";
 import { downloadUrl } from "@/lib/api";
 
 export default function History() {
@@ -10,6 +10,10 @@ export default function History() {
   return (
     <div>
       <ToolHeader title="History" desc="Recent jobs on this device (localStorage, free — no account needed)." />
+      <p className="mb-3 text-xs text-muted">Download links expire after ~24h on the free tier (ephemeral backend disk). Filenames stay here; re-run a tool if a link 404s.</p>
+      {rows.length > 0 && (
+        <button onClick={() => { clearHistory(); setRows([]); }} className="mb-3 rounded-lg border border-line px-4 py-2 text-sm">Clear history</button>
+      )}
       {rows.length === 0 && <p className="text-sm text-muted">No jobs yet. Run any tool first.</p>}
       <ul className="space-y-2">
         {rows.map((r, i) => (

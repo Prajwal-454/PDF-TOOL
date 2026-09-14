@@ -4,7 +4,7 @@ import { useDropzone } from "react-dropzone";
 import ToolHeader from "@/components/ToolHeader";
 import { uploadPdf, startTool, pollJob, downloadUrl, API_BASE } from "@/lib/api";
 
-const OPS = ["ocr", "compress", "watermark", "page-numbers", "protect", "rotate"];
+const OPS = ["ocr", "compress", "watermark", "page-numbers", "protect", "rotate", "repair", "crop"];
 
 export default function Workflows() {
   const [fileId, setFileId] = useState<string | null>(null);
@@ -32,7 +32,7 @@ export default function Workflows() {
 
   return (
     <div>
-      <ToolHeader title="Workflow builder" desc="Chain free operations: Upload → OCR → Compress → Watermark → Protect → Download." />
+      <ToolHeader title="Workflow builder" desc="Chain free operations: Upload → OCR → Repair → Compress → Crop → Watermark → Protect → Download." />
       <div {...getRootProps()} className="cursor-pointer rounded-2xl border-2 border-dashed border-line bg-card p-6 text-center">
         <input {...getInputProps()} aria-label="Upload PDF for workflow" />
         <p className="font-medium">{fileId ? "PDF ready ✓" : "Upload PDF"}</p>
@@ -48,6 +48,20 @@ export default function Workflows() {
             {(s.op === "watermark" || s.op === "protect") && (
               <input placeholder={s.op === "watermark" ? "Text" : "Password"} className="rounded-lg border border-line p-2 text-sm"
                 value={s.params.text ?? s.params.password ?? ""} onChange={(e) => setSteps((p) => p.map((x, j) => (j === i ? { ...x, params: s.op === "watermark" ? { text: e.target.value } : { password: e.target.value } } : x)))} />
+            )}
+            {s.op === "rotate" && (
+              <select value={String(s.params.angle ?? 90)} onChange={(e) => setSteps((p) => p.map((x, j) => (j === i ? { ...x, params: { angle: Number(e.target.value) } } : x)))} className="rounded-lg border border-line p-2 text-sm" aria-label={`Step ${i + 1} angle`}>
+                {[90, 180, 270].map((a) => <option key={a} value={a}>{a}°</option>)}
+              </select>
+            )}
+            {s.op === "crop" && (
+              <input placeholder="Margin % (1-39)" inputMode="numeric" className="w-36 rounded-lg border border-line p-2 text-sm"
+                value={s.params.margin_pct ?? "10"} onChange={(e) => setSteps((p) => p.map((x, j) => (j === i ? { ...x, params: { margin_pct: e.target.value } } : x)))} aria-label={`Step ${i + 1} margin percent`} />
+            )}
+            {s.op === "compress" && (
+              <select value={String(s.params.level ?? "recommended")} onChange={(e) => setSteps((p) => p.map((x, j) => (j === i ? { ...x, params: { level: e.target.value } } : x)))} className="rounded-lg border border-line p-2 text-sm" aria-label={`Step ${i + 1} level`}>
+                {["low", "recommended", "extreme"].map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
             )}
             <button className="ml-auto text-sm text-danger" onClick={() => setSteps((p) => p.filter((_, j) => j !== i))}>Remove</button>
           </div>

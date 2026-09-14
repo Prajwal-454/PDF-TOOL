@@ -11,9 +11,11 @@ See `DEPLOY.md` to host the frontend on Vercel and the backend on Render (both f
 - Security: protect, unlock (password-gated), redact (permanent + verified), compare, sign (PNG placement; PAdES later)
 - Optimize: compress (shows % saved), repair (best-effort), ocr (Tesseract/OCRmyPDF when installed, graceful otherwise)
 - AI (offline free): summarize, ask (both with page citations), markdown, form-detect, translate shell (Ollama/LibreTranslate upgrade, honestly labeled)
-- Workflows: `/workflows` chains ocr→compress→watermark→protect→download as one job
+- Workflows: `/workflows` chains ocr→repair→compress→crop→watermark→protect→download as one job
 - AI workspace: `/ai` — upload once, summarize/ask/markdown/fields
 - History: `/history` — localStorage, no account needed
+- Multi-file results: split and PDF→images list every part + one-click **Download all (.zip)**
+- Ephemeral hygiene: files/jobs auto-expire (~24h), cleanup on boot + `POST /api/maintenance/cleanup`
 
 ## Run locally (free)
 Backend:
@@ -23,8 +25,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 uvicorn app.main:app --reload --port 8000
 ```
-Frontend:
-```powershell
+Frontend:```powershell
 cd ../frontend
 npm install
 npm run dev

@@ -14,6 +14,10 @@ services:
         value: 3.12.7
       - key: MAX_UPLOAD_MB
         value: 50
+      - key: FILE_TTL_HOURS
+        value: 24
+      - key: JOB_TTL_HOURS
+        value: 24
       # After the Vercel deploy, lock this down to your frontend URL(s):
       # CORS_ORIGINS=https://<your-app>.vercel.app,http://localhost:3000
       # Default "*" allows any frontend (incl. Vercel preview URLs). Safe here:

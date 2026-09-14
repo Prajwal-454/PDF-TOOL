@@ -2,8 +2,18 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "PDF Tools — Everything you need for PDFs",
-  description: "Organize, convert, edit, secure, optimize and analyze PDFs."
+  title: {
+    default: "PDF Tools — Merge, Split, Compress, Convert, AI (Free)",
+    template: "%s · PDF Tools",
+  },
+  description: "Free PDF tools: merge, split, compress, convert, watermark, protect, OCR, summarize and ask. No sign-up, no paid APIs.",
+  keywords: ["PDF", "merge PDF", "split PDF", "compress PDF", "PDF to Word", "OCR", "watermark PDF", "free PDF tools"],
+  openGraph: {
+    title: "PDF Tools — Everything you need for PDFs",
+    description: "Organize, convert, edit, secure, optimize and analyze PDFs. 100% free stack.",
+    type: "website",
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -27,6 +37,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </header>
         <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
+        <footer className="border-t border-line bg-card">
+          <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-6 text-xs text-muted md:flex-row md:items-center md:justify-between">
+            <p>PDF Tools · 100% free stack — no paid APIs, no account. Files auto-expire after ~24h.</p>
+            <p>
+              <a className="underline" href="/history">History</a>{" · "}
+              <a className="underline" href="/workflows">Workflows</a>{" · "}
+              <a className="underline" href="/ai">AI Workspace</a>
+            </p>
+          </div>
+        </footer>
       </body>
     </html>
   );

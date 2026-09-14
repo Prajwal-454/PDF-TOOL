@@ -3,12 +3,22 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .utils.config import settings
 from .utils import storage
-from .api import files, merge, download, tools
+from .api import files, merge, download, tools, maintenance
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     storage.ensure_dirs()
+    # Best-effort hygiene on boot (ephemeral disk): never crash startup.
+    try:
+        storage.cleanup_old_files()
+    except Exception:
+        pass
+    try:
+        from .workers import job_store
+        job_store.prune_old()
+    except Exception:
+        pass
     yield
 
 
@@ -32,11 +42,28 @@ app.include_router(files.router)
 app.include_router(merge.router)
 app.include_router(tools.router)
 app.include_router(download.router)
+app.include_router(maintenance.router)
 
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    # Keep {"status": "ok"} shape (frontend + Render depend on it) and add
+    # cheap diagnostics. Individual counters are best-effort.
+    try:
+        store = storage.storage_stats()
+    except Exception:
+        store = {}
+    try:
+        from .workers import job_store
+        jobs = job_store.job_count()
+    except Exception:
+        jobs = None
+    try:
+        from .services import ocr_service
+        ocr = ocr_service.ocr_status()
+    except Exception:
+        ocr = {}
+    return {"status": "ok", "storage": store, "jobs": jobs, "ocr": ocr}
 
 
 @app.get("/api/tools")
