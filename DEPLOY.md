@@ -20,6 +20,21 @@ Notes:
 - Disks are **ephemeral**: uploads/results vanish on restart/redeploy. History in the
   frontend keeps filenames but old download links expire — expected on free tier.
 
+## 1b. Enable Groq AI (free tier, optional but recommended)
+
+`summarize`/`ask` use Groq when `GROQ_API_KEY` is set, else offline fallback:
+
+1. Get a free key: https://console.groq.com → API Keys → Create (`gsk_...`).
+2. Render → your service → **Environment** → add:
+   - `GROQ_API_KEY` = `gsk_...` (secret — never commit it)
+   - `GROQ_MODEL` = `openai/gpt-oss-120b`
+   - `GROQ_MAX_CHARS` = `15000`
+   Saving restarts the service. `render.yaml` already declares these keys
+   (`GROQ_API_KEY` with `sync: false` so Blueprint prompts for it).
+3. Verify: open `https://<yours>/api/tools/ai/status` →
+   `{"configured":true,"model":"openai/gpt-oss-120b",...}` means real LLM answers.
+   `configured:false` means offline fallback (app still works).
+
 ## 2. Frontend → Vercel (free project)
 
 1. Vercel dashboard → **Add New → Project** → import `Prajwal-454/PDF-TOOL`.
@@ -74,3 +89,4 @@ no cron needed on the free tier. Old download links 404 after expiry; the UI say
 | Old download links 404 | Ephemeral disk restarted — re-run the tool |
 | Vercel build can't reach API | `NEXT_PUBLIC_API_BASE` unset at build time — set it, then **Redeploy** |
 | Render build fails on `pydantic-core` / Rust / `maturin` | Wrong Python version — keep `runtime.txt` on 3.12.x (3.14 has no wheels for pinned deps) |
+| AI answers say `offline-extractive` / `offline-tfidf` | `GROQ_API_KEY` missing on Render — add it under Environment, then check `/api/tools/ai/status` shows `configured:true` |

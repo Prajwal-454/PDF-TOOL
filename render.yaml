@@ -24,3 +24,13 @@ services:
       # the API uses no cookies/auth. Lock it down once your domain is stable.
       - key: CORS_ORIGINS
         value: "*"
+      # Groq AI (free tier) for real summarize/ask. sync:false prompts for the
+      # secret on Blueprint install — value never committed to git.
+      # Get a free key: https://console.groq.com -> API Keys -> Create (gsk_...)
+      # Empty/missing = offline extractive fallback (app still works).
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: GROQ_MAX_CHARS
+        value: 15000
