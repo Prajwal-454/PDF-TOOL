@@ -48,7 +48,7 @@ export default function AIWorkspace() {
 
   return (
     <div>
-      <ToolHeader title="AI PDF Workspace" desc="Free offline AI: summarize, ask, markdown, form fields, translate shell. No API keys." />
+      <ToolHeader title="AI PDF Workspace" desc="Summarize, ask questions, convert to Markdown, detect form fields, and translate." />
       <div {...getRootProps()} className="cursor-pointer rounded-2xl border-2 border-dashed border-line bg-card p-8 text-center">
         <input {...getInputProps()} aria-label="Upload PDF for AI" />
         <p className="font-medium">{fileId ? `${name} ✓` : "Drop PDF here"}</p>
