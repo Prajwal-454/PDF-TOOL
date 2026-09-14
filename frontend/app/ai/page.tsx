@@ -11,25 +11,34 @@ export default function AIWorkspace() {
   const [out, setOut] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  async function uploadAiPdf(f: File) {
+    setBusy(true);
+    setError(null);
+    try {
+      const up = await uploadPdf(f);
+      setFileId(up.file_id);
+      setName(up.original_name);
+    } catch (e: any) {
+      const detail = e?.message ? String(e.message) : "";
+      setError(detail
+        ? `${detail} — API: ${API_BASE}`
+        : `Upload failed. Only valid PDFs under 50 MB are accepted. API: ${API_BASE}. If every file fails, check NEXT_PUBLIC_API_BASE (Vercel redeploy needed) and ${API_BASE}/api/health.`);
+    } finally {
+      setBusy(false);
+    }
+  }
   const { getRootProps, getInputProps } = useDropzone({
     multiple: false,
     accept: { "application/pdf": [".pdf"] },
+    useFsAccessApi: false,
     onDrop: async ([f]) => {
       if (!f) return;
-      setBusy(true);
-      setError(null);
-      try {
-        const up = await uploadPdf(f);
-        setFileId(up.file_id);
-        setName(up.original_name);
-      } catch (e: any) {
-        const detail = e?.message ? String(e.message) : "";
-        setError(detail
-          ? `${detail} — API: ${API_BASE}`
-          : `Upload failed. Only valid PDFs under 50 MB are accepted. API: ${API_BASE}. If every file fails, check NEXT_PUBLIC_API_BASE (Vercel redeploy needed) and ${API_BASE}/api/health.`);
-      } finally {
-        setBusy(false);
-      }
+      await uploadAiPdf(f);
+    },
+    // Mobile pickers often misreport MIME: let the server magic-check decide.
+    onDropRejected: (rejections) => {
+      const f = rejections[0]?.file;
+      if (f) uploadAiPdf(f);
     }
   });
 

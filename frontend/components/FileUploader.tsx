@@ -28,7 +28,15 @@ export default function FileUploader({ onUploaded }: { onUploaded: (f: UploadedF
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "application/pdf": [".pdf"] },
-    multiple: true
+    multiple: true,
+    useFsAccessApi: false,
+    // Mobile pickers often report "" / octet-stream MIME: retry via server
+    // (magic-check) instead of hard-blocking before upload.
+    onDropRejected: (rejections) => {
+      const files = rejections.map((r) => r.file).filter(Boolean);
+      if (files.length) onDrop(files);
+      else setError("That file was blocked by the file picker. Only valid PDFs under 50 MB are accepted.");
+    }
   });
 
   return (

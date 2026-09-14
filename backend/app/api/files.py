@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from pathlib import Path
 from ..utils.config import settings
 from ..utils.files import validate_pdf_bytes, secure_file_id, _strip_leading_junk
 from ..utils import storage
@@ -19,7 +20,8 @@ OFFICE_SUFFIX_MAP = {
     ".csv": (".csv", "office"),
 }
 
-FREE_INTAKE_MSG = "Free intake accepts PDF, JPG/JPEG, PNG, DOCX, XLSX, PPTX, HTML, TXT/CSV (50 MB max)."
+FREE_INTAKE_MSG = ("Free intake accepts PDF, JPG/JPEG, PNG, DOCX, XLSX, PPTX, HTML, TXT/CSV (50 MB max). "
+                   "Phone photos (WEBP/HEIC/GIF/BMP/TIFF/AVIF) are auto-converted to JPG.")
 
 
 def _detect_kind(head: bytes, orig: str) -> tuple[str, str] | None:
@@ -37,6 +39,68 @@ def _detect_kind(head: bytes, orig: str) -> tuple[str, str] | None:
         # Empty files are rejected after write with a clear message.
         return OFFICE_SUFFIX_MAP[ext]
     return None
+
+
+# Register HEIC/HEIF support when the free pillow-heif plugin is installed,
+# so iPhone photos decode via Pillow like any other image.
+try:
+    from pillow_heif import register_heif_opener as _register_heif_opener  # type: ignore
+    _register_heif_opener()
+except ImportError:
+    pass
+
+
+def _convert_image_bytes_to_jpg(src: Path) -> Path | None:
+    """Try decoding src with Pillow (WEBP/GIF/BMP/TIFF/AVIF/HEIC) and save as JPG.
+
+    Returns the converted .jpg path, or None if Pillow cannot read the file.
+    Mobile cameras shoot HEIC/WEBP, so conversion beats rejection.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    try:
+        with Image.open(src) as im:
+            im.load()
+            rgb = im.convert("RGB")
+            dst = src.with_suffix(".jpg")
+            rgb.save(dst, "JPEG", quality=92)
+            return dst
+    except Exception:
+        return None
+
+
+async def _save_and_convert_mobile_photo(file: UploadFile, orig: str) -> dict | None:
+    """Stream an unrecognized upload to disk and try Pillow conversion.
+
+    Returns the upload response dict on success, None if not a readable image
+    (caller then raises the standard helpful 400).
+    """
+    from ..utils.config import settings as _settings
+    raw_id = secure_file_id(".bin")
+    raw = storage.tmp_path(raw_id)
+    size = 0
+    with open(raw, "wb") as out:
+        while chunk := await file.read(1024 * 1024):
+            size += len(chunk)
+            if size > _settings.max_upload_mb * 1024 * 1024:
+                out.close()
+                raw.unlink(missing_ok=True)
+                return None
+            out.write(chunk)
+    if size == 0:
+        raw.unlink(missing_ok=True)
+        return None
+    converted = _convert_image_bytes_to_jpg(raw)
+    raw.unlink(missing_ok=True)
+    if converted is None:
+        return None
+    file_id = secure_file_id(".jpg")
+    converted.rename(storage.tmp_path(file_id))
+    return {"file_id": file_id, "original_name": file.filename or "photo.jpg",
+            "size": storage.tmp_path(file_id).stat().st_size,
+            "pages": 0, "kind": "image", "converted_from": orig.rsplit(".", 1)[-1] if "." in orig else "unknown"}
 
 
 def _helpful_type_error(head: bytes, orig: str) -> str:
@@ -64,7 +128,7 @@ def _helpful_type_error(head: bytes, orig: str) -> str:
     if h.startswith(b"RIFF") and b"WEBP" in h:
         return f"WEBP images are not supported. Convert to JPG/PNG first. {FREE_INTAKE_MSG}"
     if h[4:12] == b"ftypheic" or h[4:12] == b"ftypheix" or h[4:11] == b"ftypmif":
-        return f"HEIC photos (iPhone) are not supported. Export as JPG first. {FREE_INTAKE_MSG}"
+        return f"HEIC photos (iPhone) could not be read. In iOS use Camera Settings → Formats → Most Compatible, or export the photo as JPG first. {FREE_INTAKE_MSG}"
     if stripped.startswith(b"<") or stripped.lower().startswith(b"<!doctype html"):
         # HTML pasted/saved without .html extension
         return f"HTML content needs a .html extension to be accepted. {FREE_INTAKE_MSG}"
@@ -128,13 +192,19 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 @router.post("/upload-any")
 async def upload_any(file: UploadFile = File(...)):
-    """Free multi-format intake: PDF, JPG/PNG (magic-checked), Office/TXT/HTML (extension + size checked)."""
+    """Free multi-format intake: PDF, JPG/PNG (magic-checked), Office/TXT/HTML (extension + size checked).
+
+    Phone photos (WEBP/HEIC/GIF/BMP/TIFF/AVIF) are auto-converted to JPG via Pillow.
+    """
     storage.ensure_dirs()
     head = await file.read(32)
     await file.seek(0)
     orig = (file.filename or "upload").lower().strip()
     detected = _detect_kind(head, orig)
     if detected is None:
+        converted = await _save_and_convert_mobile_photo(file, orig)
+        if converted is not None:
+            return converted
         raise HTTPException(400, _helpful_type_error(head, orig))
     suffix, kind = detected
     # Normalize jpeg -> jpg so downstream image handling sees one suffix.

@@ -18,6 +18,14 @@ function dropzoneAccept(tool: Tool): Record<string, string[]> | undefined {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".png": "image/png",
+    ".webp": "image/webp",
+    ".heic": "image/heic",
+    ".heif": "image/heif",
+    ".gif": "image/gif",
+    ".bmp": "image/bmp",
+    ".tif": "image/tiff",
+    ".tiff": "image/tiff",
+    ".avif": "image/avif",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -64,56 +72,56 @@ export default function GenericToolPage({ tool }: { tool: Tool }) {
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  async function uploadDropped(dropped: File[]) {
+    setError(null);
+    setStatus("uploading");
+    try {
+      for (const f of dropped) {
+        let up;
+        if (tool.anyUpload || tool.slug === "sign") {
+          up = await uploadAny(f);
+        } else {
+          // PDF-only tools: try strict PDF endpoint first. Only fall back to
+          // the multi-format endpoint on a 400 (bad magic); network/CORS
+          // errors must surface as-is so "all files fail" is diagnosable.
+          try {
+            up = await uploadPdf(f);
+          } catch (e1: any) {
+            const m1 = String(e1?.message || "");
+            if (m1.includes("HTTP 400")) {
+              up = await uploadAny(f);
+            } else {
+              throw e1;
+            }
+          }
+        }
+        setFiles((prev) => [...prev, up]);
+      }
+    } catch (e: any) {
+      const detail = e?.message ? String(e.message) : "";
+      setError(detail
+        ? `${detail} — Free intake: PDF/JPG/JPEG/PNG/DOCX/XLSX/PPTX/HTML/TXT/CSV (50 MB max). API: ${API_BASE}`
+        : `Upload failed. Free intake: PDF/JPG/JPEG/PNG/DOCX/XLSX/PPTX/HTML/TXT/CSV (50 MB max). API: ${API_BASE}. If every file fails, the frontend is likely pointing at localhost (NEXT_PUBLIC_API_BASE unset at build time) or the Render backend is asleep/down — open ${API_BASE}/api/health.`);
+    } finally {
+      setStatus("idle");
+    }
+  }
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: dropzoneAccept(tool),
     multiple: Boolean(tool.multi),
+    // Force <input type="file"> instead of the File System Access API:
+    // mobile browsers (Drive/Files/Photos pickers) are unreliable with FS Access.
+    useFsAccessApi: false,
+    onDrop: uploadDropped,
     onDropRejected: (rejections) => {
-      const names = rejections.map((r) => r.file.name).join(", ") || "file";
-      setError(
-        `${names} was blocked by the file picker. This tool accepts ${tool.accept} (free intake: PDF/JPG/PNG/DOCX/XLSX/PPTX/HTML/TXT/CSV, 50 MB max). If your file looks valid, try renaming it to the right extension and re-upload.`
-      );
+      // Mobile pickers often report "" or application/octet-stream MIME, so valid
+      // files get picker-rejected. The server magic-check is the source of truth —
+      // try the upload anyway; server errors (if any) replace this path.
+      const files = rejections.map((r) => r.file).filter(Boolean);
+      if (files.length) uploadDropped(files);
+      else setError(`That file was blocked by the file picker. This tool accepts ${tool.accept} (free intake: PDF/JPG/PNG/DOCX/XLSX/PPTX/HTML/TXT/CSV, 50 MB max). If your file looks valid, try renaming it to the right extension and re-upload.`);
     },
-    onDrop: async (dropped: File[]) => {
-      setError(null);
-      setStatus("uploading");
-      try {
-        for (const f of dropped) {
-          // Client pre-check: give an instant message for obviously wrong extensions
-          // instead of waiting for the server round-trip.
-          const lower = f.name.toLowerCase();
-          const isPdfTool = !tool.anyUpload && tool.slug !== "sign";
-          if (isPdfTool && !(/\.pdf$/i.test(lower))) {
-            // Still try server (it handles edge cases), but warn if server rejects.
-          }
-          let up;
-          if (tool.anyUpload || tool.slug === "sign") {
-            up = await uploadAny(f);
-          } else {
-            // PDF-only tools: try strict PDF endpoint first. Only fall back to
-            // the multi-format endpoint on a 400 (bad magic); network/CORS
-            // errors must surface as-is so "all files fail" is diagnosable.
-            try {
-              up = await uploadPdf(f);
-            } catch (e1: any) {
-              const m1 = String(e1?.message || "");
-              if (m1.includes("HTTP 400")) {
-                up = await uploadAny(f);
-              } else {
-                throw e1;
-              }
-            }
-          }
-          setFiles((prev) => [...prev, up]);
-        }
-      } catch (e: any) {
-        const detail = e?.message ? String(e.message) : "";
-        setError(detail
-          ? `${detail} — Free intake: PDF/JPG/JPEG/PNG/DOCX/XLSX/PPTX/HTML/TXT/CSV (50 MB max). API: ${API_BASE}`
-          : `Upload failed. Free intake: PDF/JPG/JPEG/PNG/DOCX/XLSX/PPTX/HTML/TXT/CSV (50 MB max). API: ${API_BASE}. If every file fails, the frontend is likely pointing at localhost (NEXT_PUBLIC_API_BASE unset at build time) or the Render backend is asleep/down — open ${API_BASE}/api/health.`);
-      } finally {
-        setStatus("idle");
-      }
-    }
   });
 
   async function run() {

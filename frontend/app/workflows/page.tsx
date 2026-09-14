@@ -12,21 +12,30 @@ export default function Workflows() {
   const [out, setOut] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  async function uploadWorkflowPdf(f: File) {
+    setError(null);
+    try {
+      const up = await uploadPdf(f);
+      setFileId(up.file_id);
+    } catch (e: any) {
+      const detail = e?.message ? String(e.message) : "";
+      setError(detail
+        ? `${detail} — API: ${API_BASE}`
+        : `Upload failed. Only valid PDFs under 50 MB are accepted. API: ${API_BASE}. If every file fails, check NEXT_PUBLIC_API_BASE (Vercel redeploy needed) and ${API_BASE}/api/health.`);
+    }
+  }
   const { getRootProps, getInputProps } = useDropzone({
     multiple: false,
     accept: { "application/pdf": [".pdf"] },
+    useFsAccessApi: false,
     onDrop: async ([f]) => {
       if (!f) return;
-      setError(null);
-      try {
-        const up = await uploadPdf(f);
-        setFileId(up.file_id);
-      } catch (e: any) {
-        const detail = e?.message ? String(e.message) : "";
-        setError(detail
-          ? `${detail} — API: ${API_BASE}`
-          : `Upload failed. Only valid PDFs under 50 MB are accepted. API: ${API_BASE}. If every file fails, check NEXT_PUBLIC_API_BASE (Vercel redeploy needed) and ${API_BASE}/api/health.`);
-      }
+      await uploadWorkflowPdf(f);
+    },
+    // Mobile pickers often misreport MIME: let the server magic-check decide.
+    onDropRejected: (rejections) => {
+      const f = rejections[0]?.file;
+      if (f) uploadWorkflowPdf(f);
     }
   });
 
