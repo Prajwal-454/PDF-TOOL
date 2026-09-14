@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 import ToolHeader from "@/components/ToolHeader";
-import { uploadPdf, startTool, pollJob } from "@/lib/api";
+import { uploadPdf, startTool, pollJob, API_BASE } from "@/lib/api";
 
 export default function AIWorkspace() {
   const [fileId, setFileId] = useState<string | null>(null);
@@ -23,7 +23,10 @@ export default function AIWorkspace() {
         setFileId(up.file_id);
         setName(up.original_name);
       } catch (e: any) {
-        setError(e?.message || "Upload failed. Only valid PDFs under 50 MB are accepted.");
+        const detail = e?.message ? String(e.message) : "";
+        setError(detail
+          ? `${detail} — API: ${API_BASE}`
+          : `Upload failed. Only valid PDFs under 50 MB are accepted. API: ${API_BASE}. If every file fails, check NEXT_PUBLIC_API_BASE (Vercel redeploy needed) and ${API_BASE}/api/health.`);
       } finally {
         setBusy(false);
       }

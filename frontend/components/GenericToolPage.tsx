@@ -85,11 +85,31 @@ export default function GenericToolPage({ tool }: { tool: Tool }) {
           if (isPdfTool && !(/\.pdf$/i.test(lower))) {
             // Still try server (it handles edge cases), but warn if server rejects.
           }
-          const up = tool.anyUpload || tool.slug === "sign" ? await uploadAny(f) : await uploadPdf(f).catch(async () => await uploadAny(f));
+          let up;
+          if (tool.anyUpload || tool.slug === "sign") {
+            up = await uploadAny(f);
+          } else {
+            // PDF-only tools: try strict PDF endpoint first. Only fall back to
+            // the multi-format endpoint on a 400 (bad magic); network/CORS
+            // errors must surface as-is so "all files fail" is diagnosable.
+            try {
+              up = await uploadPdf(f);
+            } catch (e1: any) {
+              const m1 = String(e1?.message || "");
+              if (m1.includes("HTTP 400")) {
+                up = await uploadAny(f);
+              } else {
+                throw e1;
+              }
+            }
+          }
           setFiles((prev) => [...prev, up]);
         }
       } catch (e: any) {
-        setError(e?.message || "Upload failed. Check file type (free intake: PDF/JPG/JPEG/PNG/DOCX/XLSX/PPTX/HTML/TXT/CSV, 50 MB max). If the message shows HTTP 400, it names the exact problem (e.g. WEBP/GIF/legacy .doc).");
+        const detail = e?.message ? String(e.message) : "";
+        setError(detail
+          ? `${detail} — Free intake: PDF/JPG/JPEG/PNG/DOCX/XLSX/PPTX/HTML/TXT/CSV (50 MB max). API: ${API_BASE}`
+          : `Upload failed. Free intake: PDF/JPG/JPEG/PNG/DOCX/XLSX/PPTX/HTML/TXT/CSV (50 MB max). API: ${API_BASE}. If every file fails, the frontend is likely pointing at localhost (NEXT_PUBLIC_API_BASE unset at build time) or the Render backend is asleep/down — open ${API_BASE}/api/health.`);
       } finally {
         setStatus("idle");
       }
