@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     max_image_pages: int = 80
     max_image_dpi: int = 200
     max_split_parts: int = 50
+    # Groq (free tier) for real AI summarize/ask. Empty key = offline fallback.
+    # Get a free key at https://console.groq.com -> GROQ_API_KEY=gsk_...
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-120b"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    # Cap PDF text sent to Groq per request (chars). Keeps free-tier fast/cheap.
+    groq_max_chars: int = 15000
+    groq_timeout_s: float = 30.0
     # Phase 2+: switch to Postgres / Redis / Celery
     database_url: str = "sqlite:///./dev.db"
     redis_url: str = "redis://localhost:6379/0"

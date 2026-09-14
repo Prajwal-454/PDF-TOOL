@@ -70,6 +70,12 @@ def start_tool(tool: str, payload: dict, bg: BackgroundTasks):
     return {"job_id": job["id"], "status": job["status"]}
 
 
+@router.get("/ai/status")
+def ai_status():
+    from ..services import ai_service
+    return ai_service.groq_status()
+
+
 @router.get("/ocr/status")
 def ocr_engine_status():
     from ..services import ocr_service

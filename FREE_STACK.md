@@ -12,7 +12,7 @@ Everything in this project runs free, offline-first. No OpenAI, no paid OCR, no 
 | PDF → Office | PyMuPDF text/tables → docx/openpyxl/pptx writers | same | Best-effort; scanned PDFs need OCR first (UI says so) |
 | HTML/TXT → PDF | `reportlab` sanitizer | BSD | No paid HTML renderer |
 | OCR | `Tesseract` + `OCRmyPDF` (optional install, both free: Apache/GPL) | free | If missing, API still works: reports engine status + passes through searchable PDFs |
-| AI summarize/ask | Offline extractive + TF-IDF retrieval, page citations | — | Zero downloads, zero keys |
+| AI summarize/ask | Groq LLM (`GROQ_API_KEY`, free tier) with offline extractive + TF-IDF fallback, page citations | — | Real answers when key set; zero keys still works |
 | AI translate | Pluggable: `OLLAMA_URL` (free local LLM) or `LIBRETRANSLATE_URL` (free self-host) else honest offline passthrough preserving layout | — | Never pretends to translate; UI shows provider |
 | Markdown/forms | PyMuPDF heuristics | — | Free |
 | Jobs dev | FastAPI BackgroundTasks | — | Zero infra |

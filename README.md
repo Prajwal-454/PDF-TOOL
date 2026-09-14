@@ -10,7 +10,7 @@ See `DEPLOY.md` to host the frontend on Vercel and the backend on Render (both f
 - Edit: watermark, page-numbers, crop
 - Security: protect, unlock (password-gated), redact (permanent + verified), compare, sign (PNG placement; PAdES later)
 - Optimize: compress (shows % saved), repair (best-effort), ocr (Tesseract/OCRmyPDF when installed, graceful otherwise)
-- AI (offline free): summarize, ask (both with page citations), markdown, form-detect, translate shell (Ollama/LibreTranslate upgrade, honestly labeled)
+- AI (Groq free-tier LLM when `GROQ_API_KEY` is set, offline fallback otherwise): summarize, ask (both with page citations), markdown, form-detect, translate shell (Ollama/LibreTranslate upgrade, honestly labeled)
 - Workflows: `/workflows` chains ocr→repair→compress→crop→watermark→protect→download as one job
 - AI workspace: `/ai` — upload once, summarize/ask/markdown/fields
 - History: `/history` — localStorage, no account needed

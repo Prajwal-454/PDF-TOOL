@@ -1,15 +1,13 @@
-"""Free offline AI layer — no paid API keys required.
+"""Free AI layer — Groq LLM when configured, offline fallback otherwise.
 
-Default providers (work with zero downloads):
-  - summarize: extractive frequency summarizer with page citations
-  - ask: TF-IDF sentence retrieval with page citations (mini-RAG, no vectors DB needed)
-  - markdown: structure detection -> clean Markdown
-  - forms: heuristic field detection (widgets + text patterns)
-  - translate: pluggable. Tries free local options in order:
-      1. Ollama (free, local) if OLLAMA_URL set
-      2. LibreTranslate (free, self-hostable) if LIBRETRANSLATE_URL set
-      3. offline passthrough that preserves layout and clearly labels provider.
-Upgrade path: point env vars at your free local models; API shape stays identical.
+Providers (in order):
+  - summarize/ask: Groq (free tier, GROQ_API_KEY=gsk_...) -> real LLM answer
+  - fallback: offline extractive frequency summarizer + TF-IDF retrieval
+    with page citations (zero downloads, zero keys)
+  - markdown/forms: PyMuPDF heuristics (free)
+  - translate: Ollama / LibreTranslate if set, else honest offline passthrough.
+
+API shape stays identical either way: {summary|answer, sources, provider}.
 """
 
 from pathlib import Path
@@ -18,6 +16,95 @@ import os
 import re
 from collections import Counter
 import fitz
+
+try:
+    from ..utils.config import settings
+except Exception:  # pragma: no cover - importable without app context in tests
+    settings = None  # type: ignore
+
+
+def _groq_key() -> str:
+    if settings is not None and getattr(settings, "groq_api_key", ""):
+        return str(settings.groq_api_key).strip()
+    return os.environ.get("GROQ_API_KEY", "").strip()
+
+
+def _groq_model() -> str:
+    if settings is not None and getattr(settings, "groq_model", ""):
+        return str(settings.groq_model).strip() or "openai/gpt-oss-120b"
+    return os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b"
+
+
+def _groq_base_url() -> str:
+    if settings is not None and getattr(settings, "groq_base_url", ""):
+        return str(settings.groq_base_url).rstrip("/")
+    return os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
+
+
+def _groq_max_chars() -> int:
+    try:
+        if settings is not None and getattr(settings, "groq_max_chars", 0):
+            return int(settings.groq_max_chars)
+    except Exception:
+        pass
+    try:
+        return int(os.environ.get("GROQ_MAX_CHARS", "15000"))
+    except Exception:
+        return 15000
+
+
+def groq_status() -> dict:
+    """Report which AI provider summarize/ask will use (for UI + /api/tools/ai/status)."""
+    key = _groq_key()
+    model = _groq_model()
+    if key:
+        return {"provider": f"groq:{model}", "configured": True, "model": model,
+                "fallback": "offline-extractive / offline-tfidf"}
+    return {"provider": "offline-extractive / offline-tfidf", "configured": False,
+            "model": model, "fallback": None,
+            "hint": "Set GROQ_API_KEY=gsk_... for real LLM answers (free tier: console.groq.com)."}
+
+
+def _groq_chat(system: str, user: str, max_tokens: int = 1024, temperature: float = 0.3) -> str:
+    """Single Groq OpenAI-compatible chat call. Raises on any failure (caller falls back)."""
+    import httpx  # lazy: keeps boot light when Groq is unused
+    key = _groq_key()
+    if not key:
+        raise RuntimeError("GROQ_API_KEY not configured")
+    timeout = float(getattr(settings, "groq_timeout_s", 30.0)) if settings is not None else 30.0
+    resp = httpx.post(
+        f"{_groq_base_url()}/chat/completions",
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        json={"model": _groq_model(),
+              "messages": [{"role": "system", "content": system},
+                           {"role": "user", "content": user}],
+              "temperature": temperature,
+              "max_tokens": max_tokens},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    text = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
+    text = (text or "").strip()
+    if not text:
+        raise RuntimeError(f"Empty Groq response: {str(data)[:300]}")
+    return text
+
+
+def _context_text(pages: list[dict], max_chars: int | None = None) -> str:
+    cap = max_chars or _groq_max_chars()
+    parts: list[str] = []
+    total = 0
+    for p in pages:
+        chunk = f"\n[Page {p['page']}]\n{(p.get('text') or '').strip()}"
+        if not chunk.strip():
+            continue
+        if total + len(chunk) > cap:
+            parts.append(chunk[: max(0, cap - total)])
+            break
+        parts.append(chunk)
+        total += len(chunk)
+    return "".join(parts).strip()
 
 STOP = set("""a an the and or but if then else for of in on to with as at by from is are was were be been
 has have had it its this that these those you your we our they their he she him her his hers ours yours
@@ -38,7 +125,17 @@ def _sentences(text: str) -> list[str]:
 
 
 def summarize_pdf(src: Path, mode: str = "key-points", max_sentences: int = 8) -> dict:
+    """Summarize via Groq when GROQ_API_KEY is set, else offline extractive fallback."""
     pages = _pages(src)
+    if _groq_key():
+        try:
+            return _summarize_groq(pages, mode)
+        except Exception:
+            pass  # fall through to offline — AI jobs must never hard-fail
+    return _summarize_offline(pages, mode, max_sentences)
+
+
+def _summarize_offline(pages: list[dict], mode: str = "key-points", max_sentences: int = 8) -> dict:
     full = "\n".join(p["text"] for p in pages)
     sents = _sentences(full)
     if not sents:
@@ -62,20 +159,96 @@ def summarize_pdf(src: Path, mode: str = "key-points", max_sentences: int = 8) -
             "provider": "offline-extractive", "mode": mode}
 
 
+_SUMMARIZE_INSTRUCTIONS = {
+    "quick": "Write a 3-sentence quick summary.",
+    "detailed": "Write a detailed summary covering every major section, ~10 bullet points.",
+    "executive": "Write a 5-sentence executive summary for a busy decision-maker.",
+    "key-points": "List the 8 most important key points as bullet points.",
+}
+
+
+def _summarize_groq(pages: list[dict], mode: str = "key-points") -> dict:
+    context = _context_text(pages)
+    if not context.strip():
+        return {"summary": "No extractable text found. Run OCR first for scanned PDFs.",
+                "sources": [], "provider": f"groq:{_groq_model()}", "mode": mode}
+    instruction = _SUMMARIZE_INSTRUCTIONS.get(mode, _SUMMARIZE_INSTRUCTIONS["key-points"])
+    header = {"quick": "Quick summary", "detailed": "Detailed summary",
+              "executive": "Executive summary", "key-points": "Key points"}.get(mode, "Summary")
+    text = _groq_chat(
+        system="You summarize PDF documents accurately. Use ONLY the provided document text. "
+               "Never invent facts. End with page references like (p.2) where relevant.",
+        user=f"{instruction}\n\nDOCUMENT:\n{context}",
+        max_tokens=1024,
+        temperature=0.3,
+    )
+    # Honest citations: map offline-extractive top sentences back to pages so
+    # the UI can still show source pages even for LLM summaries.
+    try:
+        cited = _summarize_offline(pages, mode).get("sources", [])
+    except Exception:
+        cited = sorted({p["page"] for p in pages if p.get("text", "").strip()})
+    return {"summary": f"{header}:\n{text}", "sources": cited,
+            "provider": f"groq:{_groq_model()}", "mode": mode}
+
+
 def ask_pdf(src: Path, question: str, top_k: int = 4) -> dict:
+    """Answer via Groq grounded in retrieved passages; offline TF-IDF fallback."""
     pages = _pages(src)
+    if _groq_key() and (question or "").strip():
+        try:
+            return _ask_groq(pages, question, top_k)
+        except Exception:
+            pass  # fall through to offline — AI jobs must never hard-fail
+    return _ask_offline(pages, question, top_k)
+
+
+def _retrieve(corpus_pages: list[dict], question: str, top_k: int = 4) -> tuple[list[dict], Counter, int]:
     corpus = []
-    for p in pages:
+    for p in corpus_pages:
         for s in _sentences(p["text"]):
             corpus.append({"page": p["page"], "sent": s})
-    if not corpus:
-        return {"answer": "No extractable text. Run OCR first.", "sources": [], "provider": "offline-tfidf"}
     qterms = [w for w in re.findall(r"[a-z]{3,}", question.lower()) if w not in STOP]
     df = Counter()
     for c in corpus:
         for w in set(re.findall(r"[a-z]{3,}", c["sent"].lower())):
             df[w] += 1
     N = len(corpus)
+    return corpus, df, N
+
+
+def _ask_groq(pages: list[dict], question: str, top_k: int = 4) -> dict:
+    corpus, df, N = _retrieve(pages, question, top_k)
+    if not corpus:
+        return {"answer": "No extractable text. Run OCR first.", "sources": [],
+                "provider": f"groq:{_groq_model()}"}
+    qterms = [w for w in re.findall(r"[a-z]{3,}", question.lower()) if w not in STOP]
+
+    def score(sent: str) -> float:
+        tf = Counter(re.findall(r"[a-z]{3,}", sent.lower()))
+        return sum(tf.get(t, 0) * math.log((N + 1) / (df.get(t, 1))) for t in qterms)
+
+    ranked = sorted(corpus, key=lambda c: score(c["sent"]), reverse=True)[:top_k]
+    sources = sorted({c["page"] for c in ranked})
+    evidence = "\n".join(f"(p.{c['page']}) {c['sent']}" for c in ranked)
+    # Even with zero lexical overlap, the full doc head can still answer it.
+    context = evidence if any(score(c["sent"]) > 0 for c in ranked) else _context_text(pages)
+    text = _groq_chat(
+        system="You answer questions using ONLY the provided document passages. "
+               "If the answer is not in the passages, say so honestly. "
+               "Cite pages like (p.2) for each claim.",
+        user=f"QUESTION: {question}\n\nPASSAGES:\n{context}",
+        max_tokens=1024,
+        temperature=0.2,
+    )
+    return {"answer": text, "sources": sources, "provider": f"groq:{_groq_model()}"}
+
+
+def _ask_offline(pages: list[dict], question: str, top_k: int = 4) -> dict:
+    corpus, df, N = _retrieve(pages, question, top_k)
+    if not corpus:
+        return {"answer": "No extractable text. Run OCR first.", "sources": [], "provider": "offline-tfidf"}
+    qterms = [w for w in re.findall(r"[a-z]{3,}", question.lower()) if w not in STOP]
     def score(sent: str) -> float:
         tf = Counter(re.findall(r"[a-z]{3,}", sent.lower()))
         return sum(tf.get(t, 0) * math.log((N + 1) / (df.get(t, 1))) for t in qterms)
