@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: {
-    default: "PDF Tools — Merge, Split, Compress, Convert, AI (Free)",
-    template: "%s · PDF Tools",
+    default: "PDF-TOOL",
+    template: "PDF-TOOL",
   },
   description: "Free PDF tools: merge, split, compress, convert, watermark, protect, OCR, summarize and ask. No sign-up, no paid APIs.",
   keywords: ["PDF", "merge PDF", "split PDF", "compress PDF", "PDF to Word", "OCR", "watermark PDF", "free PDF tools"],
