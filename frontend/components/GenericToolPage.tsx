@@ -55,8 +55,8 @@ function toPayload(tool: Tool, files: UploadedFile[], params: Record<string, str
     const img = files.find((f) => !f.file_id.endsWith(".pdf"));
     return { ...p, file_id: pdf?.file_id, image_id: img?.file_id, page: Number(p.page || 1), x: Number(p.x || 100), y: Number(p.y || 100) };
   }
-  if (tool.slug === "reorder") return { order: String(p.order || "").split(",").map((x: string) => Number(x.trim())).filter(Boolean) };
-  if (tool.slug === "redact") return { phrases: String(p.phrases || "").split(",").map((x: string) => x.trim()).filter(Boolean) };
+  if (tool.slug === "reorder") return { file_id: files[0]?.file_id, order: String(p.order || "").split(",").map((x: string) => Number(x.trim())).filter(Boolean) };
+  if (tool.slug === "redact") return { file_id: files[0]?.file_id, phrases: String(p.phrases || "").split(",").map((x: string) => x.trim()).filter(Boolean) };
   if (tool.slug === "rotate" || tool.slug === "crop" || tool.slug === "page") { /* fallthrough */ }
   if (tool.slug === "rotate") return { file_id: files[0]?.file_id, pages: p.pages || undefined, angle: Number(p.angle || 90) };
   if (tool.slug === "crop") return { file_id: files[0]?.file_id, margin_pct: Number(p.margin_pct || 10) };
