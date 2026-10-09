@@ -1,0 +1,18 @@
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/storage:/code/storage
+    env_file:
+      - ./backend/.env.example
+  web:
+    image: node:20
+    working_dir: /web
+    volumes:
+      - ./frontend:/web
+    ports:
+      - "3000:3000"
+    command: sh -c "npm install && npm run dev"
+# Phase 2+: add postgres + redis + celery worker here
